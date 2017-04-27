@@ -1,5 +1,5 @@
 {
-  "name": "simple-chart",
+  "name": "simple-geodata",
   "version": "1.0.0",
   "description": "A simple example of working with geodata and d3",
   "main": "server.js",

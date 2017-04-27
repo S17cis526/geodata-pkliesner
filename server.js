@@ -23,7 +23,7 @@ server.listen(PORT, function() {
 function serveFile(file, type, req, res) {
   fs.readFile(file, function(err, data) {
     if(err) {
-      console.error("error");
+      console.error(err);
       res.statusCode = 500;
       res.end("Server Error");
       return;
@@ -33,13 +33,65 @@ function serveFile(file, type, req, res) {
   });
 }
 
+
+function addLocation(req, res) {
+  var url = require('url').parse(req.url);
+  var qs = require('querystring').parse(url.query);
+  var address = qs.address;
+
+  // Perform geolocation with address
+  http.get('http://www.datasciencetoolkit.org/maps/api/geocode/json?sensor=false&address=' + address, function(request){
+    var body = "";
+    request.on('err', function() {
+      // draw the index with an error status
+      res.statusCode = 500;
+      return serveFile('public/index.html', 'text/html', req, res);
+    });
+    request.on('data', function(chunk) {
+      body += chunk;
+    });
+    request.on('end', function() {
+      var response = JSON.parse(body);
+      // Read in the current location data
+      fs.readFile('data/locations.json', function(err, data){
+        if(err) {
+          res.statusCode = 500;
+          return serveFile('public/index.html', 'text/html', req, res);
+        }
+        // Parse the locations
+        var locations = JSON.parse(data);
+        // Add the new results to the location data
+        response.results.forEach(function(result){
+          locations.push({
+            address: result.formatted_address,
+            latitude: result.geometry.location.lat,
+            longitude: result.geometry.location.lng
+          })
+        })
+        // Write the amended locations back to the file
+        fs.writeFile('data/locations.json', JSON.stringify(locations), function(err){
+          if(err) {
+            res.statusCode = 500;
+            return serveFile('public/index.html', 'text/html', req, res);
+          }
+          // Display the index page
+          serveFile('public/index.html', 'text/html', req, res);
+        });
+      });
+
+    });
+  });
+}
+
 /** @function handleRequest
  * Handles incoming http requests
  * @param {http.incomingRequest} req - the request object
  * @param {http.serverResponse} res - the response object
  */
 function handleRequest(req, res) {
-  switch(req.url) {
+  var url = require('url').parse(req.url);
+
+  switch(url.pathname) {
     // Serving static files
     case '/':
     case '/index.html':
@@ -61,6 +113,11 @@ function handleRequest(req, res) {
       break;
     case '/united-states.json':
       serveFile('data/united-states.json', 'application/json', req, res);
+      break;
+
+    // Load location
+    case '/add-location':
+      addLocation(req, res);
       break;
 
     // Serve error code
